@@ -57,4 +57,4 @@ else:
 
 # --- BAS DE PAGE PUBLICITAIRE ---
 if statut_user == "Gratuit":
-    st.markdown("<br><hr><center><small>Espace Publicitaire de Google AdSense disponible pour affichage de bannières</small></center>", unsafe_url_allowed=True)
+    st.markdown("<br><hr><center><small>Espace Publicitaire de Google AdSense disponible pour affichage de bannières</small></center>")
