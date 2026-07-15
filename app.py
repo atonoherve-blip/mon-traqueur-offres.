@@ -21,7 +21,7 @@ if statut_user == "Gratuit":
         <strong>📢 Publicité :</strong> Vous cherchez un partenaire de cautionnement pour vos soumissions ? 
         Contactez <a href='#'>OttawaBonds Inc.</a> | <em>Passez au forfait Premium pour supprimer les publicités.</em>
     </div>
-    """, unsafe_url_allowed=True)
+    """)
 
 # --- BOUTON DE RECHARGE MANUELLE ---
 if st.button("🔄 Forcer la mise à jour (Scan en direct des portails publics)"):
