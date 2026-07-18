@@ -10,7 +10,38 @@ class CollecteurMarches:
 
 class CollecteurCanada(CollecteurMarches):
     """Collecteur officiel pour Approvisionnement Canada (SPAC)."""
-    def collecter_federal(self, mot_cle=""):
+        def collecter_federal(self, mot_cle=""):
+        url = "https://canada.ca"
+        params = {"keywords": mot_cle} if mot_cle else {}
+        
+        # Astuce : Faux identifiants pour contourner la sécurité du gouvernement
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json"
+        }
+        
+        offres = []
+        try:
+            # On ajoute headers=headers dans la requête ci-dessous
+            reception = requests.get(url, params=params, headers=headers, timeout=10)
+            if reception.status_code == 200:
+                donnees = reception.json()
+                liste_avis = donnees.get("results", []) if isinstance(donnees.get("results"), list) else donnees.get("results", {}).values()
+                for infos in liste_avis:
+                    id_avis = infos.get("tenderId", "inconnu")
+                    offres.append({
+                        "ID": id_avis, "Paye": self.paye, "Region": self.region,
+                        "Source": "Approvisionnement Canada (SPAC)",
+                        "Titre": infos.get("tenderTitle_fr", infos.get("tenderTitle_en", "Sans titre")),
+                        "Description": infos.get("description", ""),
+                        "DateCloture": infos.get("closingDate", "Inconnue"),
+                        "Lien": f"https://canada.ca{id_avis}",
+                        "Budget": 0, "JoursRestants": 14, "NombreAmendements": 0
+                    })
+        except Exception as e:
+            print(f"Erreur d'accès à l'API Fédérale : {e}")
+        return offres
+
         url = "https://canada.ca"
         params = {"keywords": mot_cle} if mot_cle else {}
         offres = []
