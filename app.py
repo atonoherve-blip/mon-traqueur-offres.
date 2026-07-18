@@ -31,8 +31,13 @@ if st.button("🔄 Forcer la mise à jour (Scan en direct des portails publics)"
 
 # --- FILTRES DE VISUALISATION ---
 st.markdown("### 📊 Opportunités Détectées")
+recherche = st.text_input("🔍 Rechercher une opportunité (mot-clé, ministère ou numéro) :")
 conn = sqlite3.connect(DB_NAME)
-df = pd.read_sql_query("SELECT * FROM appels_offres ORDER BY score DESC", conn)
+if recherche:
+    df = pd.read_sql_query(f"SELECT * FROM appels_offres WHERE titre LIKE '%{recherche}%' OR organisation LIKE '%{recherche}%' ORDER BY score DESC", conn)
+else:
+    df = pd.read_sql_query("SELECT * FROM appels_offres ORDER BY score DESC", conn)
+
 conn.close()
 
 if df.empty:
