@@ -1,65 +1,84 @@
 import streamlit as st
-import sqlite3
 import pandas as pd
-from database import DB_NAME, initialiser_bdd
+import sqlite3
 from cron_worker import executer_routine_quotidienne
 
-st.set_page_config(page_title="GovProcure AI Tracker", layout="wide")
-initialiser_bdd()
+# Configuration de la page
+st.set_page_config(page_title="GovProcure PME Tracker", layout="wide")
 
-# --- ESPACE ABONNEMENT USER ---
-st.sidebar.title("👤 Mon Compte SaaS")
-statut_user = st.sidebar.radio("Niveau d'accès :", ["Gratuit", "Premium (Alerte SMS active)"])
+st.title("🎯 GovProcure PME Tracker")
+st.subheader("Détecteur intelligent de marchés publics pour les petites et moyennes entreprises")
 
-st.title("🇨🇦 GovProcure AI Tracker - Ottawa & International")
-st.caption("Analyse en temps réel des marchés à faible concurrence et budgets optimisés.")
+# 1. BARRE DE SÉLECTION DU PAYS (Évolutive)
+pays_disponibles = {
+    "Canada 🇨🇦": {"code": "CA", "source": "AchatsCanada (Fédéral)"},
+    "France 🇫🇷 (Bientôt disponible)": {"code": "FR", "source": "BOAMP"},
+    "États-Unis 🇺🇸 (Bientôt disponible)": {"code": "US", "source": "SAM.gov"}
+}
 
-# --- EN-TÊTE PUBLICITAIRE (Monétisation Compte Gratuit) ---
-if statut_user == "Gratuit":
-    st.markdown("""
-    <div style="background-color:#fff3cd;padding:10px;border-radius:5px;border-left:5px solid #ffc107;margin-bottom:20px;">
-        <strong>📢 Publicité :</strong> Vous cherchez un partenaire de cautionnement pour vos soumissions ? 
-        Contactez <a href='#'>OttawaBonds Inc.</a> | <em>Passez au forfait Premium pour supprimer les publicités.</em>
-    </div>
-    """)
+choix_pays = st.selectbox("🌐 Sélectionnez le pays cible :", list(pays_disponibles.keys()))
+infos_pays = pays_disponibles[choix_pays]
 
-# --- BOUTON DE RECHARGE MANUELLE ---
-if st.button("🔄 Forcer la mise à jour (Scan en direct des portails publics)"):
-    with st.spinner("Analyse de CanadaBuys et MERX en cours..."):
-        executer_routine_quotidienne()
-    st.success("Base de données synchronisée !")
+# Bouton de synchronisation en direct
+if st.button("🔄 Synchroniser et scanner les derniers appels d'offres en direct"):
+    with st.spinner(f"Connexion au serveur de {choix_pays} et analyse IA des critères PME..."):
+        try:
+            nb_offres = executer_routine_quotidienne(infos_pays["code"])
+            st.success(f"Analyse terminée ! {nb_offres} nouvelles opportunités qualifiées trouvées pour les PME.")
+        except Exception as e:
+            st.error(f"Erreur lors de la synchronisation : {e}")
 
-# --- FILTRES DE VISUALISATION ---
-st.markdown("### 📊 Opportunités Détectées")
-recherche = st.text_input("🔍 Rechercher une opportunité (mot-clé, ministère ou numéro) :")
-conn = sqlite3.connect(DB_NAME)
-if recherche:
-    df = pd.read_sql_query(f"SELECT * FROM appels_offres WHERE titre LIKE '%{recherche}%' OR organisation LIKE '%{recherche}%' ORDER BY score DESC", conn)
-else:
-    df = pd.read_sql_query("SELECT * FROM appels_offres ORDER BY score DESC", conn)
+# 2. FILTRES SPÉCIFIQUES POUR PME
+st.markdown("### 🔍 Filtrer par type d'opportunité PME")
+col1, col2, col3, col4, col5 = st.columns(5)
+
+with col1: opt_faible = st.checkbox("📉 Faible valeur / Simplifié")
+with col2: opt_tech = st.checkbox("🚀 Innovation / Subvention")
+with col3: opt_div = st.checkbox("🤝 Diversité / Inclusion")
+with col4: opt_sous = st.checkbox("🏗️ Sous-traitance")
+with col5: opt_urgent = st.checkbox("⚡ Contrats Urgents")
+
+# Connexion à la base de données pour afficher le tableau
+conn = sqlite3.connect("opportunites_pme.db")
+
+try:
+    # Lecture des données correspondant au pays sélectionné
+    query = "SELECT * FROM offres WHERE pays = ?"
+    df = pd.read_sql_query(query, conn, params=(infos_pays["code"],))
+    
+    if not df.empty:
+        # Application des filtres cochés par l'utilisateur
+        conditions = []
+        if opt_faible: conditions.append(df['type_opportunite'] == "Faible valeur / Simplifié")
+        if opt_tech: conditions.append(df['type_opportunite'] == "Innovation / Subvention")
+        if opt_div: conditions.append(df['type_opportunite'] == "Diversité / Inclusion")
+        if opt_sous: conditions.append(df['type_opportunite'] == "Sous-traitance")
+        if opt_urgent: conditions.append(df['type_opportunite'] == "Contrat Urgent")
+        
+        if conditions:
+            df_filtre = df[pd.concat(conditions, axis=1).any(axis=1)]
+        else:
+            df_filtre = df # Si rien n'est coché, on montre tout
+            
+        if not df_filtre.empty:
+            # Nettoyage de l'affichage pour l'utilisateur
+            df_affichage = df_filtre[[
+                "type_opportunite", "secteur", "produit", "montant", 
+                "region", "date_publication", "date_limite", "defis_contraintes", "lien"
+            ]].copy()
+            
+            df_affichage.columns = [
+                "Type d'opportunité", "Secteur d'activité", "Produit à livrer", 
+                "Montant estimé", "Région", "Date Publication", "Date Limite", "Défis & Contraintes", "Lien officiel"
+            ]
+            
+            # Affichage du tableau interactif
+            st.dataframe(df_affichage, use_container_width=True, hide_index=True)
+        else:
+            st.info("Aucun contrat ne correspond à cette combinaison de filtres pour le moment.")
+    else:
+        st.info(f"La base de données pour {choix_pays} est vide. Cliquez sur le bouton de synchronisation ci-dessus pour lancer le premier scan.")
+except Exception:
+    st.info("Base de données en attente d'initialisation. Cliquez sur le bouton de synchronisation ci-dessus.")
 
 conn.close()
-
-if df.empty:
-    st.info("Aucun contrat en base de données. Cliquez sur le bouton de mise à jour ci-dessus.")
-else:
-    col1, col2 = st.columns(2)
-    with col1:
-        score_min = st.slider("Score de Match minimum", 0, 100, 30)
-    with col2:
-        source_filter = st.multiselect("Filtrer par guichet :", df['source'].unique(), default=df['source'].unique())
-        
-    df_filtre = df[(df['score'] >= score_min) & (df['source'].isin(source_filter))]
-    
-    # Affichage personnalisé selon l'abonnement
-    if statut_user == "Gratuit":
-        # Masquer les colonnes à forte valeur ajoutée aux utilisateurs non payants
-        df_visuel = df_filtre.drop(columns=['id', 'statut_sms', 'description'])
-        st.dataframe(df_visuel, use_container_width=True)
-        st.warning("🔒 Les descriptions complètes et l'accès aux liens directs de soumission sont réservés aux membres Premium.")
-    else:
-        st.dataframe(df_filtre, use_container_width=True)
-
-# --- BAS DE PAGE PUBLICITAIRE ---
-if statut_user == "Gratuit":
-    st.markdown("<br><hr><center><small>Espace Publicitaire de Google AdSense disponible pour affichage de bannières</small></center>")
